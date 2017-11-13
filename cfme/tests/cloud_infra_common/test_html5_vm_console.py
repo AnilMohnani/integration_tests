@@ -76,7 +76,7 @@ def configure_websocket(appliance):
     server_settings.disable_server_roles('websocket')
 
 
-@pytest.mark.uncollectif(lambda: version.current_version() < '5.8', reason='Only valid for >= 5.8')
+@pytest.mark.uncollectif(lambda: version.current_version() < '5.7', reason='Only valid for >= 5.8')
 def test_html5_vm_console(appliance, provider, configure_websocket, vm_obj,
         configure_vmware_console_for_test, take_screenshot):
     """
@@ -173,7 +173,7 @@ def test_html5_vm_console(appliance, provider, configure_websocket, vm_obj,
             assert vm_console.wait_for_text(text_to_find="login:", timeout=200), ("VM Console"
                 " didn't prompt for Login")
 
-        if not provider.one_of(OpenStackProvider):
+        if (not provider.one_of(OpenStackProvider)) and (version.current_version() > '5.8'):
             assert vm_console.send_fullscreen(), ("VM Console Toggle Full Screen button does"
             " not work")
 

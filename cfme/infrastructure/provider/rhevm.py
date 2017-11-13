@@ -50,9 +50,10 @@ class RHEVMProvider(InfraProvider):
     endpoints_form = RHEVMEndpointForm
     discover_dict = {"rhevm": True}
     # xpath locators for elements, to be used by selenium
-    _console_connection_status_element = '//*[@id="connection-status"]|//*[@id="message-div"]'
+    _console_connection_status_element = ('//*[@id="connection-status"]|//*[@id="message-div"]|'
+                                        '//*[@id="spice-status"]')
     _canvas_element = '(//*[@id="remote-console"]/canvas|//*[@id="spice-screen"]/canvas)'
-    _ctrl_alt_del_xpath = '//*[@id="ctrlaltdel"]'
+    _ctrl_alt_del_xpath = '//*[@id="ctrlaltdel"]|//*[@id="sendCtrlAltDelButton"]'
     _fullscreen_xpath = '//*[@id="fullscreen"]'
     bad_credentials_error_msg = 'Cannot complete login due to an incorrect user name or password.'
 

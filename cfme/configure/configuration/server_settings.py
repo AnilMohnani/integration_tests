@@ -323,7 +323,7 @@ class ServerInformation(Updateable, Pretty, NavigatableMixin):
             if name == 'console_type':
                 if value not in self.CONSOLE_TYPES:
                     raise ConsoleTypeNotSupported(value)
-                if self.appliance.version < '5.8':
+                if self.appliance.version < '5.7':
                     raise ConsoleNotSupported(
                         product_name=self.appliance.product_name,
                         version=self.appliance.version
