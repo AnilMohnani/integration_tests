@@ -60,8 +60,10 @@ port_ranges = [
 ]
 
 
+@pytest.mark.uncollectif(lambda provider: not provider.one_of(VMwareProvider))
 @pytest.mark.parametrize("vnc_start_port,vnc_end_port", port_ranges)
-def test_html5_vnc_ports(appliance, provider,  # configure_websocket, vm_obj, configure_console_vnc,
+def test_html5_vnc_ports(request, appliance, provider,  # configure_websocket, vm_obj,
+        # configure_console_vnc,
         take_screenshot, vnc_start_port, vnc_end_port):
     """
     Test the VNC port ranges being applied to HTML5 Consoles.
@@ -69,12 +71,15 @@ def test_html5_vnc_ports(appliance, provider,  # configure_websocket, vm_obj, co
     This will test the different VNC port ranges with permutations.
     """
 
-    logger.info("Changing VNC Port range.")
-    logger.info("Setting VNC Start port: {} and VNC End port: {}"
-        .format(vnc_start_port, vnc_end_port))
-    from IPython import embed
-    embed()
-    provider.update({'vnc_start_port': vnc_start_port, 'vnc_end_port': vnc_end_port})
+    def _set_vnc_ports(vnc_start_port='', vnc_end_port=''):
+        logger.info("Changing VNC Port range.")
+        logger.info("Setting VNC Start port: {} and VNC End port: {}"
+            .format(vnc_start_port, vnc_end_port))
+        provider.update({'vnc_start_port': vnc_start_port, 'vnc_end_port': vnc_end_port})
+
+    _set_vnc_ports(vnc_start_port, vnc_end_port)
+    request.addfinalizer(_set_vnc_ports)
+
 
 @pytest.mark.rhv1
 def test_html5_vm_console(appliance, provider, configure_websocket, vm_obj,
