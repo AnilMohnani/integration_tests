@@ -5,7 +5,7 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-ip_addr = '10.8.198.211'  # Appliance IP
+ip_addr = '10.8.197.226'  # Appliance IP
 base_auth = HTTPBasicAuth('admin', 'smartvm')
 passed=0
 failed=list()
@@ -131,13 +131,18 @@ url = "https://" + ip_addr + "/api/service_templates/"
 
 payload = '''
 {
-"name":"planInsomnia",
-"prov_type":"generic_transformation_plan",
-"config_info":
-{
-"transformation_mapping_id":"1",
-"vm_ids":["10"]
-}
+    "name": "planInsomnia",
+    "prov_type":"generic_transformation_plan",
+    "config_info":
+    {
+        "transformation_mapping_id":"1",
+        "actions":
+        [
+            {
+                "vm_id":"2"
+            }
+        ]
+    }
 }
 '''
 headers = {
