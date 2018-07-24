@@ -593,7 +593,7 @@ class MigrationPlanCollection(BaseCollection):
         for vm in vm_list:
             view.vms.filter_by_name(vm.name)
             for row in view.vms.table.rows():
-                if row.vm_name.read() in vm_list:
+                if vm.name in row.vm_name.read():
                     row.select.fill(True)
             view.vms.clear_filters.click()
         view.next_btn.click()
