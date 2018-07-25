@@ -4751,7 +4751,6 @@ class MigrationProgressBar(Widget):
         for el in self.browser.elements(self.TITLE_LOCATOR):
             if self.browser.text(el) == item_name:
                 return item_name
-        raise ItemNotFound("Item: {} not found".format(item_name))
 
     def get_clock(self, vm_name):
         """Returns in-process time of migration at that time"""
@@ -4782,7 +4781,7 @@ class MigrationProgressBar(Widget):
         text = self.browser.text(self.VMS_LOCATOR, parent=el)
         return re.findall(r"\d+", text)[1]
 
-    def is_plan_started(self, plan_name):
+    def is_plan_in_progress(self, plan_name):
         """Returns true if migration plan is in in-progress state"""
         el = self._get_vm_element(plan_name)
         return self.browser.is_displayed(self.TIMER_LOCATOR, parent=el)

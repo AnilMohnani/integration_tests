@@ -38,16 +38,21 @@ def test_single_datastore_single_vm_migration(request, appliance, providers, con
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
     mapping = infrastructure_mapping_collection.create(form_data_vm_obj_single_datastore[0])
     migration_plan_collection = appliance.collections.v2v_plans
-    migration_plan_collection.create(name="plan_{}".format(fauxfactory.gen_alphanumeric()),
-                description="desc_{}".format(fauxfactory.gen_alphanumeric()),
-                infra_map=mapping.name,
-                vm_list=form_data_vm_obj_single_datastore[1], start_migration=True)
+    migration_plan = migration_plan_collection.create(
+        name="plan_{}".format(fauxfactory.gen_alphanumeric()), description="desc_{}"
+        .format(fauxfactory.gen_alphanumeric()), infra_map=mapping.name,
+        vm_list=form_data_vm_obj_single_datastore[1], start_migration=True)
 
     view = appliance.browser.create_view(navigator.get_class(migration_plan_collection, 'All').VIEW)
+
+    def _get_plan_status():
+        return view.progress_bar.is_plan_in_progress(migration_plan.name)
     # explicit wait for spinner of in-progress status card
-    wait_for(lambda: bool(view.progress_bar.is_plan_started(migration_plan_collection.name)),
-             message="migration plan is starting, be patient please", delay=5, num_sec=3600)
-    assert view._get_status(migration_plan_collection.name) == "Completed Plans"
+    from IPython import embed
+    embed()
+    wait_for(func=_get_plan_status,
+             message="migration plan is in progress, be patient please", delay=5, num_sec=3600)
+    assert view._get_status(migration_plan.name) == "Completed Plans"
 
     view = navigate_to(infrastructure_mapping_collection, 'All', wait_for_view=True)
     mapping_list = view.infra_mapping_list
