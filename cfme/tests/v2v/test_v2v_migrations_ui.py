@@ -25,8 +25,7 @@ pytestmark = [
 
 
 @pytest.mark.parametrize('form_data_single_datastore', [['nfs', 'nfs']], indirect=True)
-def test_infra_mapping_ui_assertions(appliance, enable_disable_migration_ui,
-                                    providers, form_data_single_datastore,
+def test_infra_mapping_ui_assertions(appliance, provider_setup, form_data_single_datastore,
                                     soft_assert):
     # TODO: This test case does not support update
     # as update is not a supported feature for mapping.
@@ -59,8 +58,7 @@ def test_infra_mapping_ui_assertions(appliance, enable_disable_migration_ui,
 
 
 @pytest.mark.parametrize('form_data_single_datastore', [['nfs', 'nfs']], indirect=True)
-def test_v2v_ui_set1(appliance, providers, enable_disable_migration_ui,
-                    form_data_single_datastore, soft_assert):
+def test_v2v_ui_set1(appliance, provider_setup, form_data_single_datastore, soft_assert):
     """Perform UI Validations on Infra_Mappings Wizard."""
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
 
@@ -91,9 +89,9 @@ def test_v2v_ui_set1(appliance, providers, enable_disable_migration_ui,
         ['mappings'][0]['target'])
 
     # Test Datacenter name in source and destination mapping select list:
-    soft_assert(providers[0].data['datacenters'][0]
+    soft_assert(provider_setup[0].data['datacenters'][0]
      in view.form.cluster.source_clusters.all_items[0])
-    soft_assert(providers[1].data['datacenters'][0]
+    soft_assert(provider_setup[1].data['datacenters'][0]
      in view.form.cluster.target_clusters.all_items[0])
 
     # Assert Add Mapping button is enabled before selecting source and target clusters
@@ -140,29 +138,28 @@ def test_v2v_ui_set1(appliance, providers, enable_disable_migration_ui,
     soft_assert(view.form.general.name_help_text.read() == 'Please enter a unique name')
 
 
-def test_v2v_ui_no_providers(appliance, providers, enable_disable_migration_ui,
-                      soft_assert):
+def test_v2v_ui_no_provider_setup(appliance, provider_setup, soft_assert):
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
     view = navigate_to(infrastructure_mapping_collection, 'All', wait_for_view=True)
     soft_assert(view.create_infrastructure_mapping.is_displayed)
-    is_provider_1_deleted = providers[0].delete_if_exists(cancel=False)
-    is_provider_2_deleted = providers[1].delete_if_exists(cancel=False)
-    # Test after removing Providers, users cannot Create Infrastructure Mapping
+    is_provider_1_deleted = provider_setup[0].delete_if_exists(cancel=False)
+    is_provider_2_deleted = provider_setup[1].delete_if_exists(cancel=False)
+    # Test after removing provider_setup, users cannot Create Infrastructure Mapping
     view = navigate_to(infrastructure_mapping_collection, 'All', wait_for_view=True)
     soft_assert(view.configure_providers.is_displayed)
     soft_assert(not view.create_infrastructure_mapping.is_displayed)
-    # Test with no providers added migration plans not visible
+    # Test with no provider_setup added migration plans not visible
     # soft_assert(not view.create_migration_plan.is_displayed)
-    # Following leaves to appliance in the state it was before this test deleted providers
+    # Following leaves to appliance in the state it was before this test deleted provider_setup
     if is_provider_1_deleted:
-        providers[0].create(validate_inventory=True)
+        provider_setup[0].create(validate_inventory=True)
     if is_provider_2_deleted:
-        providers[1].create(validate_inventory=True)
+        provider_setup[1].create(validate_inventory=True)
 
 
 @pytest.mark.parametrize('form_data_single_datastore', [['nfs', 'nfs']], indirect=True)
-def test_v2v_mapping_with_special_chars(appliance, providers, enable_disable_migration_ui,
-                      form_data_single_datastore, soft_assert):
+def test_v2v_mapping_with_special_chars(appliance, provider_setup, form_data_single_datastore,
+                                        soft_assert):
     # Test mapping can be created with non-alphanumeric name e.g '!@#$%^&*()_+)=-,./,''[][]]':
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
     form_data_single_datastore['general']['name'] = fauxfactory.gen_special(length=10)
@@ -181,8 +178,7 @@ def test_v2v_mapping_with_special_chars(appliance, providers, enable_disable_mig
 
 
 @pytest.mark.parametrize('form_data_single_datastore', [['nfs', 'nfs']], indirect=True)
-def test_v2v_ui_set2(appliance, providers, enable_disable_migration_ui,
-                    form_data_single_datastore, soft_assert):
+def test_v2v_ui_set2(appliance, provider_setup, form_data_single_datastore, soft_assert):
     # Test migration plan name 24 chars and description 128 chars max length
     # Test earlier infra mapping can be viewed in migration plan wizard
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
@@ -213,6 +209,7 @@ def test_v2v_ui_set2(appliance, providers, enable_disable_migration_ui,
 
     vm_selected = view.vms.select_by_name('v2v')
     view.next_btn.click()
+    view.next_btn.click()
     view.options.wait_displayed()
     view.options.run_migration.select("Save migration plan to run later")
     # Test Create migration plan -Create and Read
@@ -223,23 +220,22 @@ def test_v2v_ui_set2(appliance, providers, enable_disable_migration_ui,
     view.general.name.fill(plan_name)
     view.general.description.fill(fauxfactory.gen_string("alphanumeric", length=150))
     # following assertion will fail in 5.9.4 as they have not backported this change to 5.9.4
-    # soft_assert(view.general.name_help_text.read() == 'Please enter a unique name')
+    soft_assert(view.general.name_help_text.read() == 'Please enter a unique name')
 
     view = navigate_to(migration_plan_collection, 'All', wait_for_view=True)
     soft_assert(plan_name in view.migration_plans_not_started_list.read())
     soft_assert(view.infra_mapping_list.get_associated_plans(mapping.name) == plan_name)
     soft_assert(view.migration_plans_not_started_list.get_plan_description(plan_name) ==
      plan_description)
+    # Test Associated Plans count  correctly Displayed in Map List view
     soft_assert(str(len(vm_selected)) in view.migration_plans_not_started_list.
         get_vm_count_in_plan(plan_name))
+    soft_assert(view.infra_mapping_list.get_associated_plans_count(mapping.name) ==
+     '1 Associated Plan')
+    soft_assert(view.infra_mapping_list.get_associated_plans(mapping.name) == plan_name)
     view.migration_plans_not_started_list.select_plan(plan_name)
     view = appliance.browser.create_view(MigrationPlanRequestDetailsView)
     view.wait_displayed()
     soft_assert(set(view.migration_request_details_list.read()) == set(vm_selected))
     view = navigate_to(infrastructure_mapping_collection, 'All')
     view.migration_plans_not_started_list.migrate_plan(plan_name)
-
-    # Test Associated Plans count  correctly Displayed in Map List view
-    soft_assert(view.infra_mapping_list.get_associated_plans_count(mapping.name) ==
-     '1 Associated Plan')
-    soft_assert(view.infra_mapping_list.get_associated_plans(mapping.name) == plan_name)
