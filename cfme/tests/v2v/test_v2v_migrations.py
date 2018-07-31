@@ -1,10 +1,12 @@
 """Test to validate basic navigations.Later to be replaced with End-to-End functional testing."""
 import fauxfactory
 import pytest
+import time
 
-from widgetastic.exceptions import NoSuchElementException
-from widgetastic.utils import partial_match
-
+from cfme.fixtures.provider import (
+    rhel74_template, dportgroup_template, dual_disk_template, dual_network_template,
+    win7_template, win10_template, win2012_template, win2016_template, ubuntu16_template,
+    rhel69_template, )
 from cfme.infrastructure.provider.rhevm import RHEVMProvider
 from cfme.infrastructure.provider.virtualcenter import VMwareProvider
 from cfme.markers.env_markers.provider import ONE_PER_VERSION
@@ -27,231 +29,318 @@ pytestmark = [
 ]
 
 
-def _form_data_cluster_mapping(second_provider, provider):
-    # since we have only one cluster on providers
-    source_cluster = second_provider.data.get('clusters')[0]
-    target_cluster = provider.data.get('clusters')[0]
-
-    if not source_cluster or not target_cluster:
-        pytest.skip("No data for source or target cluster in providers.")
-
-    return {
-        'sources': [partial_match(source_cluster)],
-        'target': [partial_match(target_cluster)]
-    }
-
-
-def _form_data_datastore_mapping(second_provider, provider, source_type, target_type):
-    source_datastores_list = second_provider.data.get('datastores')
-    target_datastores_list = provider.data.get('datastores')
-
-    if not source_datastores_list or not target_datastores_list:
-        pytest.skip("No data for source or target cluster in providers.")
-
-    # assuming, we just have 1 datastore of each type
-    source_datastore = [d.name for d in source_datastores_list if d.type == source_type][0]
-    target_datastore = [d.name for d in target_datastores_list if d.type == target_type][0]
-
-    return {
-        'sources': [partial_match(source_datastore)],
-        'target': [partial_match(target_datastore)]
-    }
-
-
-def _form_data_network_mapping(second_provider, provider, source_network_name, target_network_name):
-    source_vlans_list = second_provider.data.get('vlans')
-    target_vlans_list = provider.data.get('vlans')
-
-    if not source_vlans_list or not target_vlans_list:
-        pytest.skip("No data for source or target cluster in providers.")
-
-    # assuming there will be only 1 network matching given name
-    source_network = [v for v in source_vlans_list if v == source_network_name][0]
-    target_network = [v for v in target_vlans_list if v == target_network_name][0]
-
-    return {
-        'sources': [partial_match(source_network)],
-        'target': [partial_match(target_network)]
-    }
-
-
-@pytest.fixture(scope='function')
-def form_data_single_datastore(request, second_provider, provider):
-    form_data = (
-        {
-            'general': {
-                'name': 'infra_map_{}'.format(fauxfactory.gen_alphanumeric()),
-                'description': "Single Datastore migration of VM from {ds_type1} to"
-                " {ds_type2},".format(ds_type1=request.param[0], ds_type2=request.param[1])
-            },
-            'cluster': {
-                'mappings': [_form_data_cluster_mapping(second_provider, provider)]
-            },
-            'datastore': {
-                'Cluster ({})'.format(provider.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(second_provider, provider,
-                        request.param[0], request.param[1])]
-                }
-            },
-            'network': {
-                'Cluster ({})'.format(provider.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(second_provider, provider,
-                        'VM Network', 'ovirtmgmt')]
-                }
-            }
-        })
-    return form_data
-
-
-@pytest.fixture(scope='function')
-def form_data_single_network(request, second_provider, provider):
-    form_data = (
-        {
-            'general': {
-                'name': 'infra_map_{}'.format(fauxfactory.gen_alphanumeric()),
-                'description': "Single Network migration of VM from {vlan1} to {vlan2},".
-                format(vlan1=request.param[0], vlan2=request.param[1])
-            },
-            'cluster': {
-                'mappings': [_form_data_cluster_mapping(second_provider, provider)]
-            },
-            'datastore': {
-                'Cluster ({})'.format(provider.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(second_provider, provider,
-                        'nfs', 'nfs')]
-                }
-            },
-            'network': {
-                'Cluster ({})'.format(provider.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(second_provider, provider,
-                        request.param[0], request.param[1])]
-                }
-            }
-        })
-    return form_data
-
-
-@pytest.fixture(scope='function')
-def form_data_dual_datastore(request, second_provider, provider):
-    vmware_nw = second_provider.data.get('vlans')[0]
-    rhvm_nw = provider.data.get('vlans')[0]
-
-    if not vmware_nw or not rhvm_nw:
-        pytest.skip("No data for source or target network in providers.")
-
-    form_data = (
-        {
-            'general': {
-                'name': 'infra_map_{}'.format(fauxfactory.gen_alphanumeric()),
-                'description': "Dual Datastore migration of VM from {} to {},"
-                "& from {} to {}".
-                format(request.param[0][0], request.param[0][1], request.param[1][0],
-                    request.param[1][1])
-            },
-            'cluster': {
-                'mappings': [_form_data_cluster_mapping(second_provider, provider)]
-            },
-            'datastore': {
-                'Cluster ({})'.format(provider.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(second_provider, provider,
-                            request.param[0][0], request.param[0][1]),
-                        _form_data_datastore_mapping(second_provider, provider,
-                            request.param[1][0], request.param[1][1])
-                    ]
-                }
-            },
-            'network': {
-                'Cluster ({})'.format(provider.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(second_provider, provider,
-                        second_provider.data.get('vlans')[0], provider.data.get('vlans')[0])]
-                }
-            }
-        })
-    return form_data
-
-
-vms = []
-
-
-@pytest.fixture(scope="module")
-def vm_list(request, appliance, second_provider, provider):
-    """Fixture to provide list of vm objects"""
-    # TODO: Need to add list of vm and its configuration in cfme_data.yaml
-    templates = [second_provider.data.templates.big_template['name']]
-    for template in templates:
-        vm_name = random_vm_name(context='v2v-auto')
-        collection = appliance.provider_based_collection(second_provider)
-        vm = collection.instantiate(vm_name, second_provider, template_name=template)
-
-        if not second_provider.mgmt.does_vm_exist(vm_name):
-            logger.info("deploying {} on provider {}".format(vm_name, second_provider.key))
-            vm.create_on_provider(allow_skip="default", datastore=request.param)
-            vms.append(vm)
-    return vms
-
-
-@pytest.mark.parametrize('form_data_single_datastore', [['nfs', 'nfs'],
-                            ['nfs', 'iscsi'], ['iscsi', 'iscsi']], indirect=True)
-def test_single_datastore_single_vm_mapping_crud(appliance, form_data_single_datastore, providers,
-                                                 conversion_tags, soft_assert):
-    # TODO: This test case does not support update
-    # as update is not a supported feature for mapping.
+@pytest.mark.parametrize('form_data_vm_obj_single_datastore', [['nfs', 'nfs', rhel74_template],
+                            ['nfs', 'iscsi', rhel74_template], ['iscsi', 'iscsi', rhel74_template],
+                            ['iscsi', 'nfs', rhel74_template], ['iscsi', 'local', rhel74_template]],
+                        indirect=True)
+def test_single_datastore_single_vm_migration(request, appliance, providers, host_creds, conversion_tags,
+                                            form_data_vm_obj_single_datastore,
+                                            enable_disable_migration_ui):
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
-    mapping = infrastructure_mapping_collection.create(form_data_single_datastore)
-    view = navigate_to(infrastructure_mapping_collection, 'All', wait_for_view=True)
-    assert mapping.name in view.infra_mapping_list.read()
-    mapping_list = view.infra_mapping_list
-    mapping_list.delete_mapping(mapping.name)
-    view.browser.refresh()
+
+    mapping = infrastructure_mapping_collection.create(form_data_vm_obj_single_datastore[0])
+    request.addfinalizer(lambda: infrastructure_mapping_collection.delete(mapping))
+
+    migration_plan_collection = appliance.collections.v2v_plans
+
+    migration_plan = migration_plan_collection.create(
+        name="plan_{}".format(fauxfactory.gen_alphanumeric()), description="desc_{}"
+        .format(fauxfactory.gen_alphanumeric()), infra_map=mapping.name,
+        vm_list=form_data_vm_obj_single_datastore[1], start_migration=True)
+
+    # explicit wait for spinner of in-progress status card
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection, 'All').VIEW)
+    wait_for(lambda: bool(view.progress_card.is_plan_started(migration_plan.name)),
+        message="migration plan is starting, be patient please", delay=5, num_sec=150,
+        handle_exception=True)
+
+    def _get_plan_status():
+        # log current status
+        # uncomment following logs if https://github.com/ManageIQ/miq_v2v_ui_plugin/issues/415 fixed
+        # logger.info("For plan %s, current migrated size is %s out of total size %s",
+        #     migration_plan.name, view.progress_card.get_migrated_size(migration_plan.name),
+        #     view.progress_card.get_total_size(migration_plan.name))
+        # logger.info("For plan %s, current migrated VMs are %s out of total VMs %s",
+        #     migration_plan.name, view.progress_card.migrated_vms(migration_plan.name),
+        #     view.progress_card.total_vm_to_be_migrated(migration_plan.name))
+        logger.info("For plan %s, is plan in progress: %s",
+            migration_plan.name, view.progress_card.is_plan_visible(migration_plan.name))
+        # return False if plan visible under "In Progress Plans"
+        return not view.progress_card.is_plan_visible(migration_plan.name)
+
+    # wait until plan is in progress
+    wait_for(func=_get_plan_status, message="migration plan is in progress, be patient please",
+     delay=5, num_sec=3600)
+
+    view.migr_dropdown.item_select("Completed Plans")
     view.wait_displayed()
-    try:
-        assert mapping.name not in view.infra_mapping_list.read()
-    except NoSuchElementException:
-        # meaning there was only one mapping that is deleted, list is empty
-        pass
+    logger.info("For plan %s, migration status after completion: %s, total time elapsed: %s",
+        migration_plan.name, view.migration_plans_completed_list.get_vm_count_in_plan(
+            migration_plan.name), view.migration_plans_completed_list.get_clock(
+            migration_plan.name))
+    assert view.migration_plans_completed_list.is_plan_succeeded(migration_plan.name)
 
 
-@pytest.mark.parametrize('form_data_single_network', [['VM Network', 'ovirtmgmt'],
-                            ['DPortGroup', 'ovirtmgmt']], indirect=True)
-def test_single_network_single_vm_mapping_crud(appliance, conversion_tags, providers,
-                                               form_data_single_network):
-    # TODO: This test case does not support update
-    # as update is not a supported feature for mapping.
+@pytest.mark.parametrize('form_data_vm_obj_single_network', [['DPortGroup', 'ovirtmgmt',
+                            dportgroup_template], ['VM Network', 'ovirtmgmt', rhel74_template]],
+                        indirect=True)
+def test_single_network_single_vm_migration(request, appliance, providers, host_creds, conversion_tags,
+                                            form_data_vm_obj_single_network,
+                                            enable_disable_migration_ui):
+    # This test will make use of migration request details page to track status of migration
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
-    mapping = infrastructure_mapping_collection.create(form_data_single_network)
-    view = navigate_to(infrastructure_mapping_collection, 'All', wait_for_view=True)
-    assert mapping.name in view.infra_mapping_list.read()
-    mapping_list = view.infra_mapping_list
-    mapping_list.delete_mapping(mapping.name)
-    view.browser.refresh()
+
+    mapping = infrastructure_mapping_collection.create(form_data_vm_obj_single_network[0])
+    request.addfinalizer(lambda: infrastructure_mapping_collection.delete(mapping))
+
+    migration_plan_collection = appliance.collections.v2v_plans
+    migration_plan = migration_plan_collection.create(
+        name="plan_{}".format(fauxfactory.gen_alphanumeric()), description="desc_{}"
+        .format(fauxfactory.gen_alphanumeric()), infra_map=mapping.name,
+        vm_list=form_data_vm_obj_single_network[1], start_migration=True)
+    # as migration is started, try to track progress using migration plan request details page
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection, 'All').VIEW)
+    wait_for(lambda: bool(view.progress_card.is_plan_started(migration_plan.name)),
+        message="migration plan is starting, be patient please", delay=5, num_sec=150,
+        handle_exception=True)
+    view.progress_card.select_plan(migration_plan.name)
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection,
+                                                             'Details').VIEW)
     view.wait_displayed()
-    try:
-        assert mapping.name not in view.infra_mapping_list.read()
-    except NoSuchElementException:
-        # meaning there was only one mapping that is deleted, list is empty
-        pass
+    request_details_list = view.migration_request_details_list
+    vm = request_details_list.read()[0]
+
+    def _get_plan_status():
+        clock_reading1 = request_details_list.get_clock(vm)
+        time.sleep(1)  # wait 1 sec to see if clock is ticking
+        logger.info("For vm %s, current message is %s", vm,
+            request_details_list.get_message_text(vm))
+        logger.info("For vm %s, current progress description is %s", vm,
+            request_details_list.get_progress_description(vm))
+        clock_reading2 = request_details_list.get_clock(vm)
+        logger.info("clock_reading1: %s, clock_reading2:%s", clock_reading1, clock_reading2)
+        logger.info("For vm %s, is currently in progress: %s", vm,
+          request_details_list.is_in_progress(vm))
+        return not(request_details_list.is_in_progress(vm) and (clock_reading1 < clock_reading2))
+
+    wait_for(func=_get_plan_status, message="migration plan is in progress, be patient please",
+     delay=5, num_sec=3600)
+    assert (request_details_list.is_successful(vm) and not request_details_list.is_errored(vm))
 
 
-@pytest.mark.parametrize('form_data_dual_datastore', [[['nfs', 'nfs'], ['iscsi', 'iscsi']],
-                            [['nfs', 'local'], ['iscsi', 'iscsi']]], indirect=True)
-def test_dual_datastore_dual_vm_mapping_crud(appliance, form_data_dual_datastore, migration_ui,
-                                             providers):
+@pytest.mark.parametrize(
+    'form_data_dual_vm_obj_dual_datastore', [[['nfs', 'nfs',
+    rhel74_template], ['iscsi', 'iscsi', rhel74_template]]],
+    indirect=True
+)
+def test_dual_datastore_dual_vm_migration(request, appliance, providers, host_creds, conversion_tags,
+                                        enable_disable_migration_ui,
+                                        form_data_dual_vm_obj_dual_datastore, soft_assert):
+    # This test will make use of migration request details page to track status of migration
+    infrastructure_mapping_collection = appliance.collections.v2v_mappings
+    mapping = infrastructure_mapping_collection.create(form_data_dual_vm_obj_dual_datastore[0])
+    request.addfinalizer(lambda: infrastructure_mapping_collection.delete(mapping))
+
+    migration_plan_collection = appliance.collections.v2v_plans
+
+    migration_plan = migration_plan_collection.create(
+        name="plan_{}".format(fauxfactory.gen_alphanumeric()), description="desc_{}"
+        .format(fauxfactory.gen_alphanumeric()), infra_map=mapping.name,
+        vm_list=form_data_dual_vm_obj_dual_datastore[1], start_migration=True)
+    # as migration is started, try to track progress using migration plan request details page
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection, 'All').VIEW)
+    wait_for(lambda: bool(view.progress_card.is_plan_started(migration_plan.name)),
+        message="migration plan is starting, be patient please", delay=5, num_sec=150,
+        handle_exception=True)
+    view.progress_card.select_plan(migration_plan.name)
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection,
+                                                             'Details').VIEW)
+    view.wait_displayed()
+    request_details_list = view.migration_request_details_list
+    vms = request_details_list.read()
+
+    def _get_plan_status():
+        migration_plan_in_progress_tracker = []
+        for vm in vms:
+            clock_reading1 = request_details_list.get_clock(vm)
+            time.sleep(1)  # wait 1 sec to see if clock is ticking
+            logger.info("For vm %s, current message is %s", vm,
+                request_details_list.get_message_text(vm))
+            logger.info("For vm %s, current progress description is %s", vm,
+                request_details_list.get_progress_description(vm))
+            clock_reading2 = request_details_list.get_clock(vm)
+            logger.info("clock_reading1: %s, clock_reading2:%s", clock_reading1, clock_reading2)
+            logger.info("For vm %s, is currently in progress: %s", vm,
+              request_details_list.is_in_progress(vm))
+            migration_plan_in_progress_tracker.append(request_details_list.is_in_progress(vm) and
+              (clock_reading1 < clock_reading2))
+        return not any(migration_plan_in_progress_tracker)
+
+    wait_for(func=_get_plan_status, message="migration plan is in progress, be patient please",
+     delay=5, num_sec=3600)
+
+    for vm in vms:
+        soft_assert(request_details_list.is_successful(vm) and
+         not request_details_list.is_errored(vm))
+
+
+@pytest.mark.parametrize(
+    'form_data_vm_obj_dual_nics', [[['VM Network', 'ovirtmgmt'],
+    ['DPortGroup', 'Storage - VLAN 33'], dual_network_template]],
+    indirect=True
+)
+def test_dual_nics_migration(request, appliance, providers, host_creds, conversion_tags,
+        enable_disable_migration_ui, form_data_vm_obj_dual_nics):
     # TODO: Add "Delete" method call.This test case does not support update/delete
     # as update is not a supported feature for mapping,
     # and delete is not supported in our automation framework.
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
-    mapping = infrastructure_mapping_collection.create(form_data_dual_datastore)
-    view = navigate_to(infrastructure_mapping_collection, 'All', wait_for_view=True)
-    assert mapping.name in view.infra_mapping_list.read()
-    mapping_list = view.infra_mapping_list
-    mapping_list.delete_mapping(mapping.name)
-    view.browser.refresh()
+    mapping = infrastructure_mapping_collection.create(form_data_vm_obj_dual_nics[0])
+    request.addfinalizer(lambda: infrastructure_mapping_collection.delete(mapping))
+
+    migration_plan_collection = appliance.collections.v2v_plans
+
+    migration_plan = migration_plan_collection.create(
+        name="plan_{}".format(fauxfactory.gen_alphanumeric()), description="desc_{}"
+        .format(fauxfactory.gen_alphanumeric()), infra_map=mapping.name,
+        vm_list=form_data_vm_obj_dual_nics[1], start_migration=True)
+
+    # explicit wait for spinner of in-progress status card
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection, 'All').VIEW)
+    wait_for(lambda: bool(view.progress_card.is_plan_started(migration_plan.name)),
+        message="migration plan is starting, be patient please", delay=5, num_sec=150,
+        handle_exception=True)
+
+    def _get_plan_status():
+        # log current status
+        # uncomment following logs if https://github.com/ManageIQ/miq_v2v_ui_plugin/issues/415 fixed
+        # logger.info("For plan %s, current migrated size is %s out of total size %s",
+        #     migration_plan.name, view.progress_card.get_migrated_size(migration_plan.name),
+        #     view.progress_card.get_total_size(migration_plan.name))
+        # logger.info("For plan %s, current migrated VMs are %s out of total VMs %s",
+        #     migration_plan.name, view.progress_card.migrated_vms(migration_plan.name),
+        #     view.progress_card.total_vm_to_be_migrated(migration_plan.name))
+        logger.info("For plan %s, is plan in progress: %s",
+            migration_plan.name, view.progress_card.is_plan_visible(migration_plan.name))
+        # return False if plan visible under "In Progress Plans"
+        return not view.progress_card.is_plan_visible(migration_plan.name)
+
+    # wait until plan is in progress
+    wait_for(func=_get_plan_status, message="migration plan is in progress, be patient please",
+     delay=5, num_sec=3600)
+
+    view.migr_dropdown.item_select("Completed Plans")
     view.wait_displayed()
-    try:
-        assert mapping.name not in view.infra_mapping_list.read()
-    except NoSuchElementException:
-        # meaning there was only one mapping that is deleted, list is empty
-        pass
+    logger.info("For plan %s, migration status after completion: %s, total time elapsed: %s",
+        migration_plan.name, view.migration_plans_completed_list.get_vm_count_in_plan(
+            migration_plan.name), view.migration_plans_completed_list.get_clock(
+            migration_plan.name))
+    assert view.migration_plans_completed_list.is_plan_succeeded(migration_plan.name)
+
+
+@pytest.mark.parametrize('form_data_vm_obj_single_datastore', [['nfs', 'nfs', dual_disk_template]],
+                        indirect=True)
+def test_dual_disk_vm_migration(request, appliance, providers, host_creds, conversion_tags,
+                                form_data_vm_obj_single_datastore,
+                                enable_disable_migration_ui):
+    infrastructure_mapping_collection = appliance.collections.v2v_mappings
+
+    mapping = infrastructure_mapping_collection.create(form_data_vm_obj_single_datastore[0])
+    request.addfinalizer(lambda: infrastructure_mapping_collection.delete(mapping))
+
+    migration_plan_collection = appliance.collections.v2v_plans
+
+    migration_plan = migration_plan_collection.create(
+        name="plan_{}".format(fauxfactory.gen_alphanumeric()), description="desc_{}"
+        .format(fauxfactory.gen_alphanumeric()), infra_map=mapping.name,
+        vm_list=form_data_vm_obj_single_datastore[1], start_migration=True)
+    # explicit wait for spinner of in-progress status card
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection, 'All').VIEW)
+    wait_for(lambda: bool(view.progress_card.is_plan_started(migration_plan.name)),
+        message="migration plan is starting, be patient please", delay=5, num_sec=150,
+        handle_exception=True)
+
+    def _get_plan_status():
+        # log current status
+        # uncomment following logs if https://github.com/ManageIQ/miq_v2v_ui_plugin/issues/415 fixed
+        # logger.info("For plan %s, current migrated size is %s out of total size %s",
+        #     migration_plan.name, view.progress_card.get_migrated_size(migration_plan.name),
+        #     view.progress_card.get_total_size(migration_plan.name))
+        # logger.info("For plan %s, current migrated VMs are %s out of total VMs %s",
+        #     migration_plan.name, view.progress_card.migrated_vms(migration_plan.name),
+        #     view.progress_card.total_vm_to_be_migrated(migration_plan.name))
+        logger.info("For plan %s, is plan in progress: %s",
+            migration_plan.name, view.progress_card.is_plan_visible(migration_plan.name))
+        # return False if plan visible under "In Progress Plans"
+        return not view.progress_card.is_plan_visible(migration_plan.name)
+
+    # wait until plan is in progress
+    wait_for(func=_get_plan_status, message="migration plan is in progress, be patient please",
+     delay=5, num_sec=3600)
+
+    view.migr_dropdown.item_select("Completed Plans")
+    view.wait_displayed()
+    logger.info("For plan %s, migration status after completion: %s, total time elapsed: %s",
+        migration_plan.name, view.migration_plans_completed_list.get_vm_count_in_plan(
+            migration_plan.name), view.migration_plans_completed_list.get_clock(
+            migration_plan.name))
+    assert view.migration_plans_completed_list.is_plan_succeeded(migration_plan.name)
+
+
+@pytest.mark.parametrize('form_data_multiple_vm_obj_single_datastore', [['nfs', 'iscsi',
+                        [win7_template, win10_template, win2012_template, win2016_template,
+                        rhel69_template, ubuntu16_template]]], indirect=True)
+def test_migrations_different_os_templates(request, appliance, providers, host_creds, conversion_tags,
+                                form_data_multiple_vm_obj_single_datastore,
+                                enable_disable_migration_ui, soft_assert):
+    infrastructure_mapping_collection = appliance.collections.v2v_mappings
+
+    mapping = infrastructure_mapping_collection.create(
+        form_data_multiple_vm_obj_single_datastore[0])
+    request.addfinalizer(lambda: infrastructure_mapping_collection.delete(mapping))
+
+    migration_plan_collection = appliance.collections.v2v_plans
+
+    migration_plan = migration_plan_collection.create(
+        name="plan_{}".format(fauxfactory.gen_alphanumeric()), description="desc_{}"
+        .format(fauxfactory.gen_alphanumeric()), infra_map=mapping.name,
+        vm_list=form_data_multiple_vm_obj_single_datastore[1], start_migration=True)
+    # as migration is started, try to track progress using migration plan request details page
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection, 'All').VIEW)
+    wait_for(lambda: bool(view.progress_card.is_plan_started(migration_plan.name)),
+        message="migration plan is starting, be patient please", delay=5, num_sec=150,
+        handle_exception=True)
+    view.progress_card.select_plan(migration_plan.name)
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection,
+                                                             'Details').VIEW)
+    view.wait_displayed()
+    request_details_list = view.migration_request_details_list
+    vms = request_details_list.read()
+    view.items_on_page.item_select('15')
+
+    def _get_plan_status():
+        migration_plan_in_progress_tracker = []
+        for vm in vms:
+            clock_reading1 = request_details_list.get_clock(vm)
+            time.sleep(1)  # wait 1 sec to see if clock is ticking
+            logger.info("For vm %s, current message is %s", vm,
+                request_details_list.get_message_text(vm))
+            logger.info("For vm %s, current progress description is %s", vm,
+                request_details_list.get_progress_description(vm))
+            clock_reading2 = request_details_list.get_clock(vm)
+            logger.info("clock_reading1: %s, clock_reading2:%s", clock_reading1, clock_reading2)
+            logger.info("For vm %s, is currently in progress: %s", vm,
+              request_details_list.is_in_progress(vm))
+            migration_plan_in_progress_tracker.append(request_details_list.is_in_progress(vm) and
+              (clock_reading1 < clock_reading2))
+        return not any(migration_plan_in_progress_tracker)
+
+    wait_for(func=_get_plan_status, message="migration plan is in progress, be patient please",
+     delay=5, num_sec=3600)
+
+    for vm in vms:
+        soft_assert(request_details_list.is_successful(vm) and
+         not request_details_list.is_errored(vm))
 
 
 @pytest.mark.parametrize('vm_list', ['NFS_Datastore_1', 'iSCSI_Datastore_1'], ids=['NFS', 'ISCSI'],

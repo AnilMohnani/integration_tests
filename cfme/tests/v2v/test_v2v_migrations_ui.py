@@ -3,9 +3,7 @@ import fauxfactory
 import pytest
 
 from widgetastic.exceptions import NoSuchElementException
-from widgetastic.utils import partial_match
 
-from cfme.fixtures.provider import setup_or_skip
 from cfme.infrastructure.provider.rhevm import RHEVMProvider
 from cfme.infrastructure.provider.virtualcenter import VMwareProvider
 from cfme.markers.env_markers.provider import ONE_PER_VERSION
@@ -24,99 +22,6 @@ pytestmark = [
         fixture_name='second_provider'
     )
 ]
-
-
-@pytest.fixture(scope='module')
-def providers(request, second_provider, provider):
-    """ Fixture to setup providers """
-    setup_or_skip(request, second_provider)
-    setup_or_skip(request, provider)
-    yield second_provider, provider
-    second_provider.delete_if_exists(cancel=False)
-    provider.delete_if_exists(cancel=False)
-
-
-def _form_data_cluster_mapping(second_provider, provider):
-    # since we have only one cluster on providers
-    source_cluster = second_provider.data.get('clusters')[0]
-    target_cluster = provider.data.get('clusters')[0]
-
-    if not source_cluster or not target_cluster:
-        pytest.skip("No data for source or target cluster in providers.")
-
-    return {
-        'sources': [partial_match(source_cluster)],
-        'target': [partial_match(target_cluster)]
-    }
-
-
-def _form_data_datastore_mapping(second_provider, provider, source_type, target_type):
-    source_datastores_list = second_provider.data.get('datastores')
-    target_datastores_list = provider.data.get('datastores')
-
-    if not source_datastores_list or not target_datastores_list:
-        pytest.skip("No data for source or target cluster in providers.")
-
-    # assuming, we just have 1 datastore of each type
-    source_datastore = [d.name for d in source_datastores_list if d.type == source_type][0]
-    target_datastore = [d.name for d in target_datastores_list if d.type == target_type][0]
-
-    return {
-        'sources': [partial_match(source_datastore)],
-        'target': [partial_match(target_datastore)]
-    }
-
-
-def _form_data_network_mapping(second_provider, provider, source_network_name, target_network_name):
-    source_vlans_list = second_provider.data.get('vlans')
-    target_vlans_list = provider.data.get('vlans')
-
-    if not source_vlans_list or not target_vlans_list:
-        pytest.skip("No data for source or target cluster in providers.")
-
-    # assuming there will be only 1 network matching given name
-    source_network = [v for v in source_vlans_list if v == source_network_name][0]
-    target_network = [v for v in target_vlans_list if v == target_network_name][0]
-
-    return {
-        'sources': [partial_match(source_network)],
-        'target': [partial_match(target_network)]
-    }
-
-
-@pytest.fixture(scope='function')
-def form_data_single_datastore(request, second_provider, provider):
-    form_data = (
-        {
-            'general': {
-                'name': 'infra_map_{}'.format(fauxfactory.gen_alphanumeric()),
-                'description': "Single Datastore migration of VM from {ds_type1} to"
-                " {ds_type2},".format(ds_type1=request.param[0], ds_type2=request.param[1])
-            },
-            'cluster': {
-                'mappings': [_form_data_cluster_mapping(second_provider, provider)]
-            },
-            'datastore': {
-                'Cluster ({})'.format(provider.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(second_provider, provider,
-                        request.param[0], request.param[1])]
-                }
-            },
-            'network': {
-                'Cluster ({})'.format(provider.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(second_provider, provider,
-                        'VM Network', 'ovirtmgmt')]
-                }
-            }
-        })
-    return form_data
-
-
-@pytest.fixture(scope="module")
-def enable_disable_migration_ui(appliance):
-    appliance.enable_migration_ui()
-    yield
-    appliance.disable_migration_ui()
 
 
 @pytest.mark.parametrize('form_data_single_datastore', [['nfs', 'nfs']], indirect=True)
