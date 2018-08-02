@@ -4,13 +4,12 @@ import pytest
 
 from cfme.fixtures.provider import setup_or_skip
 from cfme.utils.generators import random_vm_name
-from cfme.utils.hosts import setup_host_creds
 
 from widgetastic.utils import partial_match
 
 
 @pytest.fixture(scope='function')
-def providers(migration_ui, request, second_provider, provider):
+def providers(request, second_provider, provider):
     """Fixture to setup nvc and rhv provider"""
     setup_or_skip(request, second_provider)
     setup_or_skip(request, provider)
@@ -20,9 +19,9 @@ def providers(migration_ui, request, second_provider, provider):
 
 
 @pytest.fixture(scope='function')
-def host_creds(provider_setup):
+def host_creds(providers):
     """Add credentials to conversation host"""
-    provider = provider_setup[0]
+    provider = providers[0]
     host = provider.hosts.all()[0]
     host_data, = [data for data in provider.data['hosts'] if data['name'] == host.name]
     host.update_credentials_rest(credentials=host_data['credentials'])
@@ -44,14 +43,14 @@ def conversion_tags(appliance, host_creds):
     host_creds.remove_tags(tags=(tag1, tag2))
 
 
-def get_vm(request, appliance, nvc_prov, template, datastore='nfs'):
+def get_vm(request, appliance, provider, template, datastore='nfs'):
     """Fixture to provide vm object"""
-    source_datastores_list = nvc_prov.data.get('datastores')
+    source_datastores_list = provider.data.get('datastores')
     source_datastore = [d.name for d in source_datastores_list if d.type == datastore][0]
-    collection = nvc_prov.appliance.provider_based_collection(nvc_prov)
+    collection = provider.appliance.provider_based_collection(provider)
     vm_obj = collection.instantiate(random_vm_name('v2v'),
-                                    nvc_prov,
-                                    template_name=template(nvc_prov)['name'])
+                                    provider,
+                                    template_name=template(provider)['name'])
 
     request.addfinalizer(lambda: vm_obj.cleanup_on_provider())
     vm_obj.create_on_provider(timeout=2400, find_in_cfme=True, allow_skip="default",
@@ -59,10 +58,10 @@ def get_vm(request, appliance, nvc_prov, template, datastore='nfs'):
     return vm_obj
 
 
-def _form_data_cluster_mapping(nvc_prov, rhvm_prov):
+def _form_data_cluster_mapping(provider, second_provider):
     # since we have only one cluster on providers
-    source_cluster = nvc_prov.data.get('clusters')[0]
-    target_cluster = rhvm_prov.data.get('clusters')[0]
+    source_cluster = provider.data.get('clusters')[0]
+    target_cluster = second_provider.data.get('clusters')[0]
 
     if not source_cluster or not target_cluster:
         pytest.skip("No data for source or target cluster in providers.")
@@ -73,9 +72,9 @@ def _form_data_cluster_mapping(nvc_prov, rhvm_prov):
     }
 
 
-def _form_data_datastore_mapping(nvc_prov, rhvm_prov, source_type, target_type):
-    source_datastores_list = nvc_prov.data.get('datastores')
-    target_datastores_list = rhvm_prov.data.get('datastores')
+def _form_data_datastore_mapping(provider, second_provider, source_type, target_type):
+    source_datastores_list = provider.data.get('datastores')
+    target_datastores_list = second_provider.data.get('datastores')
 
     if not source_datastores_list or not target_datastores_list:
         pytest.skip("No data for source or target cluster in providers.")
@@ -90,9 +89,9 @@ def _form_data_datastore_mapping(nvc_prov, rhvm_prov, source_type, target_type):
     }
 
 
-def _form_data_network_mapping(nvc_prov, rhvm_prov, source_network_name, target_network_name):
-    source_vlans_list = nvc_prov.data.get('vlans')
-    target_vlans_list = rhvm_prov.data.get('vlans')
+def _form_data_network_mapping(provider, second_provider, source_network_name, target_network_name):
+    source_vlans_list = provider.data.get('vlans')
+    target_vlans_list = second_provider.data.get('vlans')
 
     if not source_vlans_list or not target_vlans_list:
         pytest.skip("No data for source or target cluster in providers.")
@@ -108,7 +107,7 @@ def _form_data_network_mapping(nvc_prov, rhvm_prov, source_network_name, target_
 
 
 @pytest.fixture(scope='function')
-def form_data_single_datastore(request, nvc_prov, rhvm_prov):
+def form_data_single_datastore(request, provider, second_provider):
     form_data = (
         {
             'general': {
@@ -117,17 +116,17 @@ def form_data_single_datastore(request, nvc_prov, rhvm_prov):
                 " {ds_type2},".format(ds_type1=request.param[0], ds_type2=request.param[1])
             },
             'cluster': {
-                'mappings': [_form_data_cluster_mapping(nvc_prov, rhvm_prov)]
+                'mappings': [_form_data_cluster_mapping(provider, second_provider)]
             },
             'datastore': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_datastore_mapping(provider, second_provider,
                         request.param[0], request.param[1])]
                 }
             },
             'network': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_network_mapping(provider, second_provider,
                         'VM Network', 'ovirtmgmt')]
                 }
             }
@@ -136,7 +135,7 @@ def form_data_single_datastore(request, nvc_prov, rhvm_prov):
 
 
 @pytest.fixture(scope='function')
-def form_data_multiple_vm_obj_single_datastore(request, appliance, nvc_prov, rhvm_prov):
+def form_data_multiple_vm_obj_single_datastore(request, appliance, provider, second_provider):
     # this fixture will take list of N VM templates via request and call get_vm for each
     form_data = (
         {
@@ -146,17 +145,17 @@ def form_data_multiple_vm_obj_single_datastore(request, appliance, nvc_prov, rhv
                 " {ds_type2},".format(ds_type1=request.param[0], ds_type2=request.param[1])
             },
             'cluster': {
-                'mappings': [_form_data_cluster_mapping(nvc_prov, rhvm_prov)]
+                'mappings': [_form_data_cluster_mapping(provider, second_provider)]
             },
             'datastore': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_datastore_mapping(provider, second_provider,
                         request.param[0], request.param[1])]
                 }
             },
             'network': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_network_mapping(provider, second_provider,
                         'VM Network', 'ovirtmgmt')]
                 }
             }
@@ -164,12 +163,12 @@ def form_data_multiple_vm_obj_single_datastore(request, appliance, nvc_prov, rhv
 
     vm_obj = []
     for template_name in request.param[2]:
-        vm_obj.append(get_vm(request, appliance, nvc_prov, template_name))
+        vm_obj.append(get_vm(request, appliance, provider, template_name))
     return form_data, vm_obj
 
 
 @pytest.fixture(scope='function')
-def form_data_vm_obj_single_datastore(request, appliance, nvc_prov, rhvm_prov):
+def form_data_vm_obj_single_datastore(request, appliance, provider, second_provider):
     """Return Infra Mapping form data and vm_obj, encapsulated in list,
        deployed on correct Datastore for migration."""
     form_data = (
@@ -180,27 +179,27 @@ def form_data_vm_obj_single_datastore(request, appliance, nvc_prov, rhvm_prov):
                 " {ds_type2},".format(ds_type1=request.param[0], ds_type2=request.param[1])
             },
             'cluster': {
-                'mappings': [_form_data_cluster_mapping(nvc_prov, rhvm_prov)]
+                'mappings': [_form_data_cluster_mapping(provider, second_provider)]
             },
             'datastore': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_datastore_mapping(provider, second_provider,
                         request.param[0], request.param[1])]
                 }
             },
             'network': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_network_mapping(provider, second_provider,
                         'VM Network', 'ovirtmgmt')]
                 }
             }
         })
-    vm_obj = get_vm(request, appliance, nvc_prov, request.param[2], request.param[0])
+    vm_obj = get_vm(request, appliance, provider, request.param[2], request.param[0])
     return form_data, [vm_obj]
 
 
 @pytest.fixture(scope='function')
-def form_data_vm_obj_single_network(request, appliance, nvc_prov, rhvm_prov):
+def form_data_vm_obj_single_network(request, appliance, provider, second_provider):
     form_data = (
         {
             'general': {
@@ -209,30 +208,30 @@ def form_data_vm_obj_single_network(request, appliance, nvc_prov, rhvm_prov):
                 format(vlan1=request.param[0], vlan2=request.param[1])
             },
             'cluster': {
-                'mappings': [_form_data_cluster_mapping(nvc_prov, rhvm_prov)]
+                'mappings': [_form_data_cluster_mapping(provider, second_provider)]
             },
             'datastore': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_datastore_mapping(provider, second_provider,
                         'nfs', 'nfs')]
                 }
             },
             'network': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_network_mapping(provider, second_provider,
                         request.param[0], request.param[1])]
                 }
             }
         })
     # below request.param[2] will provider the template fixture
-    vm_obj = get_vm(request, appliance, nvc_prov, request.param[2])
+    vm_obj = get_vm(request, appliance, provider, request.param[2])
     return form_data, [vm_obj]
 
 
 @pytest.fixture(scope='function')
-def form_data_dual_vm_obj_dual_datastore(request, appliance, nvc_prov, rhvm_prov):
-    vmware_nw = nvc_prov.data.get('vlans')[0]
-    rhvm_nw = rhvm_prov.data.get('vlans')[0]
+def form_data_dual_vm_obj_dual_datastore(request, appliance, provider, second_provider):
+    vmware_nw = provider.data.get('vlans')[0]
+    rhvm_nw = second_provider.data.get('vlans')[0]
 
     if not vmware_nw or not rhvm_nw:
         pytest.skip("No data for source or target network in providers.")
@@ -247,32 +246,32 @@ def form_data_dual_vm_obj_dual_datastore(request, appliance, nvc_prov, rhvm_prov
                     request.param[1][1])
             },
             'cluster': {
-                'mappings': [_form_data_cluster_mapping(nvc_prov, rhvm_prov)]
+                'mappings': [_form_data_cluster_mapping(provider, second_provider)]
             },
             'datastore': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_datastore_mapping(provider, second_provider,
                             request.param[0][0], request.param[0][1]),
-                        _form_data_datastore_mapping(nvc_prov, rhvm_prov,
+                        _form_data_datastore_mapping(provider, second_provider,
                             request.param[1][0], request.param[1][1])
                     ]
                 }
             },
             'network': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(nvc_prov, rhvm_prov,
-                        nvc_prov.data.get('vlans')[0], rhvm_prov.data.get('vlans')[0])]
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_network_mapping(provider, second_provider,
+                        provider.data.get('vlans')[0], second_provider.data.get('vlans')[0])]
                 }
             }
         })
     # creating 2 VMs on two different datastores and returning its object list
-    vm_obj1 = get_vm(request, appliance, nvc_prov, request.param[0][2], request.param[0][0])
-    vm_obj2 = get_vm(request, appliance, nvc_prov, request.param[1][2], request.param[1][0])
+    vm_obj1 = get_vm(request, appliance, provider, request.param[0][2], request.param[0][0])
+    vm_obj2 = get_vm(request, appliance, provider, request.param[1][2], request.param[1][0])
     return form_data, [vm_obj1, vm_obj2]
 
 
 @pytest.fixture(scope='function')
-def form_data_vm_obj_dual_nics(request, appliance, nvc_prov, rhvm_prov):
+def form_data_vm_obj_dual_nics(request, appliance, provider, second_provider):
     form_data = (
         {
             'general': {
@@ -283,21 +282,21 @@ def form_data_vm_obj_dual_nics(request, appliance, nvc_prov, rhvm_prov):
                     request.param[1][1])
             },
             'cluster': {
-                'mappings': [_form_data_cluster_mapping(nvc_prov, rhvm_prov)]
+                'mappings': [_form_data_cluster_mapping(provider, second_provider)]
             },
             'datastore': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_datastore_mapping(nvc_prov, rhvm_prov, 'nfs', 'nfs')]
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_datastore_mapping(provider, second_provider, 'nfs', 'nfs')]
                 }
             },
             'network': {
-                'Cluster ({})'.format(rhvm_prov.data.get('clusters')[0]): {
-                    'mappings': [_form_data_network_mapping(nvc_prov, rhvm_prov,
+                'Cluster ({})'.format(second_provider.data.get('clusters')[0]): {
+                    'mappings': [_form_data_network_mapping(provider, second_provider,
                         request.param[0][0], request.param[0][1]),
-                        _form_data_network_mapping(nvc_prov, rhvm_prov,
+                        _form_data_network_mapping(provider, second_provider,
                         request.param[1][0], request.param[1][1])]
                 }
             }
         })
-    vm_obj = get_vm(request, appliance, nvc_prov, request.param[2])
+    vm_obj = get_vm(request, appliance, provider, request.param[2])
     return form_data, [vm_obj]

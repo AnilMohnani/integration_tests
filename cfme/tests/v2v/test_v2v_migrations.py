@@ -9,22 +9,24 @@ from cfme.fixtures.provider import (
     rhel69_template, )
 from cfme.infrastructure.provider.rhevm import RHEVMProvider
 from cfme.infrastructure.provider.virtualcenter import VMwareProvider
-from cfme.markers.env_markers.provider import ONE_PER_VERSION
-from cfme.utils.appliance.implementations.ui import navigate_to, navigator
-from cfme.utils.generators import random_vm_name
+from cfme.markers.env_markers.provider import ONE_PER_VERSION, providers
+from cfme.utils.appliance.implementations.ui import navigator
 from cfme.utils.log import logger
+from cfme.utils.providers import ProviderFilter
 from cfme.utils.wait import wait_for
 
 pytestmark = [
     pytest.mark.ignore_stream('5.8'),
     pytest.mark.provider(
-        classes=[RHEVMProvider],
-        selector=ONE_PER_VERSION
+        gen_func=providers,
+        selector=ONE_PER_VERSION,
+        filters=[ProviderFilter(classes=[VMwareProvider], required_flags=['v2v'])]
     ),
     pytest.mark.provider(
-        classes=[VMwareProvider],
+        gen_func=providers,
         selector=ONE_PER_VERSION,
-        fixture_name='second_provider'
+        fixture_name='second_provider',
+        filters=[ProviderFilter(classes=[RHEVMProvider], required_flags=['v2v'])]
     )
 ]
 
@@ -33,9 +35,9 @@ pytestmark = [
                             ['nfs', 'iscsi', rhel74_template], ['iscsi', 'iscsi', rhel74_template],
                             ['iscsi', 'nfs', rhel74_template], ['iscsi', 'local', rhel74_template]],
                         indirect=True)
-def test_single_datastore_single_vm_migration(request, appliance, providers, host_creds, conversion_tags,
-                                            form_data_vm_obj_single_datastore,
-                                            enable_disable_migration_ui):
+def test_single_datastore_single_vm_migration(request, appliance, providers, host_creds,
+                                            conversion_tags,
+                                            form_data_vm_obj_single_datastore):
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
 
     mapping = infrastructure_mapping_collection.create(form_data_vm_obj_single_datastore[0])
@@ -84,9 +86,9 @@ def test_single_datastore_single_vm_migration(request, appliance, providers, hos
 @pytest.mark.parametrize('form_data_vm_obj_single_network', [['DPortGroup', 'ovirtmgmt',
                             dportgroup_template], ['VM Network', 'ovirtmgmt', rhel74_template]],
                         indirect=True)
-def test_single_network_single_vm_migration(request, appliance, providers, host_creds, conversion_tags,
-                                            form_data_vm_obj_single_network,
-                                            enable_disable_migration_ui):
+def test_single_network_single_vm_migration(request, appliance, providers, host_creds,
+                                            conversion_tags,
+                                            form_data_vm_obj_single_network):
     # This test will make use of migration request details page to track status of migration
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
 
@@ -133,9 +135,9 @@ def test_single_network_single_vm_migration(request, appliance, providers, host_
     rhel74_template], ['iscsi', 'iscsi', rhel74_template]]],
     indirect=True
 )
-def test_dual_datastore_dual_vm_migration(request, appliance, providers, host_creds, conversion_tags,
-                                        enable_disable_migration_ui,
-                                        form_data_dual_vm_obj_dual_datastore, soft_assert):
+def test_dual_datastore_dual_vm_migration(request, appliance, providers, host_creds,
+                                        conversion_tags, soft_assert,
+                                        form_data_dual_vm_obj_dual_datastore):
     # This test will make use of migration request details page to track status of migration
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
     mapping = infrastructure_mapping_collection.create(form_data_dual_vm_obj_dual_datastore[0])
@@ -190,7 +192,7 @@ def test_dual_datastore_dual_vm_migration(request, appliance, providers, host_cr
     indirect=True
 )
 def test_dual_nics_migration(request, appliance, providers, host_creds, conversion_tags,
-        enable_disable_migration_ui, form_data_vm_obj_dual_nics):
+        form_data_vm_obj_dual_nics):
     # TODO: Add "Delete" method call.This test case does not support update/delete
     # as update is not a supported feature for mapping,
     # and delete is not supported in our automation framework.
@@ -241,8 +243,7 @@ def test_dual_nics_migration(request, appliance, providers, host_creds, conversi
 @pytest.mark.parametrize('form_data_vm_obj_single_datastore', [['nfs', 'nfs', dual_disk_template]],
                         indirect=True)
 def test_dual_disk_vm_migration(request, appliance, providers, host_creds, conversion_tags,
-                                form_data_vm_obj_single_datastore,
-                                enable_disable_migration_ui):
+                                form_data_vm_obj_single_datastore):
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
 
     mapping = infrastructure_mapping_collection.create(form_data_vm_obj_single_datastore[0])
@@ -290,9 +291,9 @@ def test_dual_disk_vm_migration(request, appliance, providers, host_creds, conve
 @pytest.mark.parametrize('form_data_multiple_vm_obj_single_datastore', [['nfs', 'iscsi',
                         [win7_template, win10_template, win2012_template, win2016_template,
                         rhel69_template, ubuntu16_template]]], indirect=True)
-def test_migrations_different_os_templates(request, appliance, providers, host_creds, conversion_tags,
+def test_migrations_different_os_templates(request, appliance, providers, host_creds,
                                 form_data_multiple_vm_obj_single_datastore,
-                                enable_disable_migration_ui, soft_assert):
+                                conversion_tags, soft_assert):
     infrastructure_mapping_collection = appliance.collections.v2v_mappings
 
     mapping = infrastructure_mapping_collection.create(
