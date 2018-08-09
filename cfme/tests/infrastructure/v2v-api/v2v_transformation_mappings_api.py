@@ -5,7 +5,7 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-ip_addr = '10.8.197.226'  # Appliance IP
+ip_addr = '10.8.198.38'  # Appliance IP
 base_auth = HTTPBasicAuth('admin', 'smartvm')
 passed=0
 failed=list()
@@ -24,7 +24,7 @@ payload = '''{
 "transformation_mapping_items": [
 { "source": "/api/clusters/2", "destination": "/api/clusters/1" },
 { "source": "/api/data_stores/6", "destination": "/api/data_stores/1" },
-{ "source": "/api/data_stores/9", "destination": "/api/data_stores/1" },
+{ "source": "/api/data_stores/5", "destination": "/api/data_stores/1" },
 { "source": "/api/lans/9", "destination": "/api/lans/2" }
 ]
 }
@@ -53,7 +53,7 @@ payload = '''{
 "transformation_mapping_items": [
 { "source": "/api//3", "destination": "/api/clusters/1" },
 { "source": "/api/data_stores/12", "destination": "/api/data_stores/1" },
-{ "source": "/api/data_stores/9", "destination": "/api/data_stores/1" },
+{ "source": "/api/data_stores/5", "destination": "/api/data_stores/1" },
 { "source": "/api/lans/9", "destination": "/api/lans/2" }
 ]
 }
@@ -285,7 +285,7 @@ payload = '''{
 "transformation_mapping_items": [
 { "source": "/api/clusters/2", "destination": "/api/clusters/1" },
 { "source": "/api/data_stores/6", "destination": "/api/data_stores/1" },
-{ "source": "/api/data_stores/9", "destination": "/api/data_stores/1" },
+{ "source": "/api/data_stores/5", "destination": "/api/data_stores/1" },
 { "source": "/api/lans/9", "destination": "/api/lans/2" }
 ]
 }
@@ -311,7 +311,7 @@ payload = '''{
 "transformation_mapping_items": [
 { "source": "/api/clusters/2", "destination": "/api/clusters/1" },
 { "source": "/api/data_stores/6", "destination": "/api/data_stores/1" },
-{ "source": "/api/data_stores/9", "destination": "/api/data_stores/1" },
+{ "source": "/api/data_stores/5", "destination": "/api/data_stores/1" },
 { "source": "/api/lans/9", "destination": "/api/lans/2" }
 ]
 }
@@ -337,7 +337,7 @@ payload = '''{
 "transformation_mapping_items": [
 { "source": "/api/clusters/2", "destination": "/api/clusters/1" },
 { "source": "/api/data_stores/6", "destination": "/api/data_stores/1" },
-{ "source": "/api/data_stores/9", "destination": "/api/data_stores/1" },
+{ "source": "/api/data_stores/5", "destination": "/api/data_stores/1" },
 { "source": "/api/lans/9", "destination": "/api/lans/2" }
 ]
 }
