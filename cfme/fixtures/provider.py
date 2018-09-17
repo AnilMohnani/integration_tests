@@ -505,6 +505,16 @@ def rhel7_minimal_modscope(provider):
     return _get_template(provider, 'rhel7_minimal')
 
 
+@pytest.fixture(scope="function")
+def rhel7_minimal_encrypted(provider):
+    return _get_template(provider, 'rhel7_minimal_encrypted')
+
+
+@pytest.fixture(scope="module")
+def rhel7_minimal_encrypted_modscope(provider):
+    return _get_template(provider, 'rhel7_minimal_encrypted')
+
+
 def _walk_to_obj_parent(obj):
     old = None
     while True:

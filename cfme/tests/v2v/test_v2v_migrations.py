@@ -4,7 +4,7 @@ import pytest
 
 from cfme.fixtures.provider import (dual_network_template, dual_disk_template,
  dportgroup_template, win7_template, win10_template, win2016_template, rhel69_template,
- win2012_template, ubuntu16_template, rhel7_minimal)
+ win2012_template, ubuntu16_template, rhel7_minimal, rhel7_minimal_encrypted)
 from cfme.infrastructure.provider.rhevm import RHEVMProvider
 from cfme.infrastructure.provider.virtualcenter import VMwareProvider
 from cfme.markers.env_markers.provider import ONE_PER_VERSION
@@ -479,3 +479,43 @@ def test_multi_host_multi_vm_migration(request, appliance, v2v_providers, host_c
     for vm in vms:
         soft_assert(request_details_list.is_successful(vm) and
          not request_details_list.is_errored(vm))
+
+
+@pytest.mark.parametrize('form_data_vm_obj_single_datastore', [['nfs', 'nfs',
+    rhel7_minimal_encrypted]], indirect=True)
+def test_encrypted_disk_single_vm_migration(request, appliance, v2v_providers, host_creds,
+                                            conversion_tags,
+                                            form_data_vm_obj_single_datastore):
+    infrastructure_mapping_collection = appliance.collections.v2v_mappings
+    # form_data_vm_obj_single_datastore has form_data at [0]
+    mapping = infrastructure_mapping_collection.create(form_data_vm_obj_single_datastore[0])
+
+    @request.addfinalizer
+    def _cleanup():
+        infrastructure_mapping_collection.delete(mapping)
+
+    migration_plan_collection = appliance.collections.v2v_plans
+    # form_data_vm_obj_single_datastore has vm_obj list at [1]
+    migration_plan = migration_plan_collection.create(
+        name="plan_{}".format(fauxfactory.gen_alphanumeric()), description="desc_{}"
+        .format(fauxfactory.gen_alphanumeric()), infra_map=mapping.name,
+        vm_list=form_data_vm_obj_single_datastore[1], start_migration=True)
+
+    # explicit wait for spinner of in-progress status card
+    view = appliance.browser.create_view(navigator.get_class(migration_plan_collection, 'All').VIEW)
+    wait_for(func=view.progress_card.is_plan_started, func_args=[migration_plan.name],
+        message="migration plan is starting, be patient please", delay=5, num_sec=150,
+        handle_exception=True)
+
+    # wait until plan is in progress
+    wait_for(func=view.plan_in_progress, func_args=[migration_plan.name],
+        message="migration plan is in progress, be patient please",
+        delay=5, num_sec=1800)
+
+    view.migr_dropdown.item_select("Completed Plans")
+    view.wait_displayed()
+    logger.info("For plan %s, migration status after completion: %s, total time elapsed: %s",
+        migration_plan.name, view.migration_plans_completed_list.get_vm_count_in_plan(
+            migration_plan.name), view.migration_plans_completed_list.get_clock(
+            migration_plan.name))
+    assert view.migration_plans_completed_list.is_plan_succeeded(migration_plan.name)
