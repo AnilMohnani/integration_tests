@@ -1,6 +1,8 @@
-FROM cfmeqe/sel_ff_chrome_new
+FROM kkulkar3/sel_ff_chrome_new
 
 ENV PROJECT integration_tests
+
+# Your pwd should contain cfme-qe-yamls and integration_tests repo
 
 ADD . cfme_tests
 
@@ -17,8 +19,6 @@ RUN virtualenv cfme_venv
 RUN . cfme_venv/bin/activate
 
 RUN export PYCURL_SSL_LIBRARY=openssl
-
-#RUN pip install -r $PROJECT/requirements/frozen.txt
 
 WORKDIR $PROJECT/
 
