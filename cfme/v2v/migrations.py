@@ -342,6 +342,8 @@ class MigrationDashboardView(BaseLoggedInPage):
 
     def switch_to(self, section):
         """Switches to Not Started, In Progress, Complete or Archived Plans section."""
+        # TODO: when refactoring these views to be nested and conditional,
+        # let's make these view constants so callers don't have to match a specific string.
         sections = {
             'Not Started Plans': self.not_started_plans,
             'In Progress Plans': self.in_progress_plans,
