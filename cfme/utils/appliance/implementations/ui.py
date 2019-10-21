@@ -9,7 +9,6 @@ from cached_property import cached_property
 from jsmin import jsmin
 from navmazing import Navigate
 from navmazing import NavigateStep
-from selenium.common.exceptions import ErrorInResponseException
 from selenium.common.exceptions import InvalidElementStateException
 from selenium.common.exceptions import InvalidSwitchToTargetException
 from selenium.common.exceptions import NoSuchElementException
@@ -417,7 +416,7 @@ class CFMENavigateStep(NavigateStep):
                 # There was still an alert when we tried again, shoot the browser in the head
                 logger.debug('Unxpected alert, recycling browser')
                 recycle = True
-        except (ErrorInResponseException, InvalidSwitchToTargetException):
+        except (InvalidSwitchToTargetException):
             # Unable to switch to the browser at all, need to recycle
             logger.info('Invalid browser state, recycling browser')
             recycle = True
