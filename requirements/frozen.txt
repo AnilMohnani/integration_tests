@@ -295,7 +295,7 @@ rsa==4.0
 ruamel.yaml==0.15.92
 s3transfer==0.1.13
 scp==0.13.2
-selenium==3.141.0
+selenium==4.0.0a3
 selenium-smart-locator==0.2.0
 Send2Trash==1.5.0
 sentaku==0.6.4
